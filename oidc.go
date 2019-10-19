@@ -89,12 +89,17 @@ type providerJSON struct {
 	UserInfoURL string `json:"userinfo_endpoint"`
 }
 
+type ProviderOptions struct {
+	AuthorityIssuerMatch bool
+	Authority            string
+}
+
 // NewProvider uses the OpenID Connect discovery mechanism to construct a Provider.
 //
 // The authority is the URL identifier for the service. For example: "https://accounts.google.com"
 // or "https://login.salesforce.com".
-func NewProvider(ctx context.Context, authority string) (*Provider, error) {
-	wellKnown := strings.TrimSuffix(authority, "/") + "/.well-known/openid-configuration"
+func NewProvider(ctx context.Context, options *ProviderOptions) (*Provider, error) {
+	wellKnown := strings.TrimSuffix(options.Authority, "/") + "/.well-known/openid-configuration"
 	req, err := http.NewRequest("GET", wellKnown, nil)
 	if err != nil {
 		return nil, err
@@ -119,7 +124,11 @@ func NewProvider(ctx context.Context, authority string) (*Provider, error) {
 	if err != nil {
 		return nil, fmt.Errorf("oidc: failed to decode provider discovery object: %v", err)
 	}
-
+	if options.AuthorityIssuerMatch {
+		if p.Issuer != options.Authority {
+			return nil, fmt.Errorf("oidc: Authority did not match the issuer returned by provider, expected %q got %q", options.Authority, p.Issuer)
+		}
+	}
 	return &Provider{
 		issuer:       p.Issuer,
 		authURL:      p.AuthURL,
